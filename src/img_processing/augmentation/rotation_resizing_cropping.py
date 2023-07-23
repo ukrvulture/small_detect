@@ -17,7 +17,7 @@ def rotate_resize_crop_rgba_img(
 
     Args:
       img_rgba: Source image RGBa-array.
-      angle_in_degrees: rotation angle in degrees [0 .. 360].
+      angle_in_degrees: Rotation angle in degrees [0 .. 360].
       scaled_width_in_pixels: Target width in pixels.
       alpha_channel_threshold: Threshold to filter out transparent pixels [0 .. 255].
 
@@ -25,11 +25,6 @@ def rotate_resize_crop_rgba_img(
       RGBa-array with rotated and resized image
       which all the rows and columns have at least one non-transparent pixel.
     """
-    src_img_rgba_width = img_rgba.shape[1]
-    src_img_rgba_height = img_rgba.shape[0]
-    scaled_height_in_pixels = int(
-        src_img_rgba_height * scaled_width_in_pixels / src_img_rgba_width )
-
     img_rgba = scipy.ndimage.rotate(img_rgba, angle=angle_in_degrees, reshape=True)
 
     # Filter .
@@ -50,6 +45,8 @@ def rotate_resize_crop_rgba_img(
     rotated_and_resized_rgba = np.copy(img_rgba[
         visible_min_r:visible_max_r + 1, visible_min_c:visible_max_c + 1,:])
 
+    scaled_height_in_pixels = int(rotated_and_resized_rgba.shape[0] *
+        scaled_width_in_pixels / rotated_and_resized_rgba.shape[1])
     rotated_and_resized_rgba = skimage.transform.resize(
         rotated_and_resized_rgba, (scaled_height_in_pixels, scaled_width_in_pixels),
         order=1, mode='constant', anti_aliasing=False,

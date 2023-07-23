@@ -36,8 +36,7 @@ def parse_args(argv):
         help='Path to the input image.', required=True)
     parser.add_argument('-o', '--output_dir', dest='output_dir_path',
         help='Path to the output dir.', required=True)
-    args = parser.parse_args(argv[1:])
-    return args
+    return parser.parse_args(argv[1:])
 
 
 def main(argv):
@@ -51,7 +50,7 @@ def main(argv):
     input_img_path = pathlib.Path(parses_args.input_img_path)
     output_dir_path = pathlib.Path(parses_args.output_dir_path)
     if not input_img_path.is_file() or not output_dir_path.is_dir():
-        logging.warning(f'{input_img_path} or {output_dir_path} is wrong.')
+        logging.error(f'{input_img_path} or {output_dir_path} is wrong.')
         return os.EX_NOINPUT
 
     img_rgba = skimage.io.imread(str(input_img_path))
