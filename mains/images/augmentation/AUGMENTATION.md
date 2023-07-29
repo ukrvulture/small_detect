@@ -10,3 +10,4 @@
 |------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
 | <img src="../../../illustrations/img_processing/augmentation/adjust_overlay.tail128.png" width="100">      | <img src="../../../illustrations/img_processing/augmentation/adjust_overlay.img01.50.50.png" width="100"> |
 | <img src="../../../illustrations/img_processing/augmentation/adjust_overlay.img01.a30.w40.png" width="50"> | <img src="../../../illustrations/img_processing/augmentation/adjust_overlay.img01.5.5.png" width="100"> |
+
