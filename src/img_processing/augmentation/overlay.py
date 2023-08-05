@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
-import logging
-
 # Methods for image overlaying.
+
+import logging
 
 import cv2 as cv
 import numpy as np

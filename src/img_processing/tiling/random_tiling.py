@@ -6,7 +6,7 @@ import random
 
 
 def get_random_tile_row_col(img_rgba, tile_width, tile_height):
-    """Gets of row and column of the randomly cropped tile.
+    """Gets row and column of the randomly cropped tile.
 
     Args:
       img_rgba: Source image RGBa-array.
