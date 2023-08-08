@@ -134,7 +134,8 @@ def main(argv):
                 random_selection.get_random_row_col(tile_rgba,
                     augmented_obj_rgba.shape[1] // 2, augmented_obj_rgba.shape[0] // 2))
 
-            target_with_augmented_rgba, binary_mask = overlay.fit_into_largest(
+            (target_with_augmented_rgba,
+             augmented_src_rgba, binary_mask) = overlay.fit_into_largest(
                 tile_rgba, augmented_obj_rgba,
                 augmented_obj_center_row, augmented_obj_center_col,
                 alpha_channel_threshold)
@@ -143,9 +144,12 @@ def main(argv):
 
             target_with_augmented_img_path = output_dir_path.joinpath(
                     target_image.path.stem + output_img_suffix + target_image.path.suffix)
+            augmented_src_path = output_dir_path.joinpath(
+                    target_image.path.stem + output_img_suffix + '.augsrc.png')
             binary_mask_path = output_dir_path.joinpath(
-                    target_image.path.stem + output_img_suffix + 'mask.png')
+                    target_image.path.stem + output_img_suffix + '.mask.png')
             skimage.io.imsave(str(target_with_augmented_img_path), target_with_augmented_rgba)
+            skimage.io.imsave(str(augmented_src_path), augmented_src_rgba)
             skimage.io.imsave(str(binary_mask_path), skimage.img_as_uint(binary_mask))
 
             output_idx += 1
@@ -155,7 +159,7 @@ def main(argv):
                 break
 
     if output_idx % 50 != 0:
-        logging.info(f"{output_idx} outputs generated.")
+        logging.info(f"{output_idx} output sets generated.")
     return os.EX_OK
 
 

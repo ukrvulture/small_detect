@@ -22,7 +22,8 @@ def fit_into_largest(
                                 the smaller image outlining it in the bigger one (optional).
 
     Returns:
-      Overlaid RGBa-array.
+      Overlaid RGBa-array, smaller image positioned
+      in the bigger one before overlay and its binary mask.
     """
     smaller_rgba_width = smaller_rgba.shape[1]
     smaller_rgba_height = smaller_rgba.shape[0]
@@ -60,4 +61,4 @@ def fit_into_largest(
         binary_mask = fit_smaller_rgba[:, :, 3] >= smaller_alpha_mask_thold
         binary_mask = np.array(binary_mask).astype(np.uint8) * 255
 
-    return blended_rgba, binary_mask
+    return blended_rgba, fit_smaller_rgba, binary_mask
