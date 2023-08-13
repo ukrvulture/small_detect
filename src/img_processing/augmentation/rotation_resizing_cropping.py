@@ -8,6 +8,7 @@ import skimage.color
 import skimage.io
 import skimage.transform
 import skimage.util
+import wand.image
 
 
 def rotate_resize_crop_rgba_img(
@@ -25,7 +26,16 @@ def rotate_resize_crop_rgba_img(
       RGBa-array with rotated and resized image
       which all the rows and columns have at least one non-transparent pixel.
     """
-    img_rgba = scipy.ndimage.rotate(img_rgba, angle=angle_in_degrees, reshape=True)
+    # im = PIL.Image.fromarray(img_rgba)
+    # rotated_img = im.rotate(angle_in_degrees, resample=PIL.Image.BICUBIC, expand=True)
+    # img_rgba = np.array(rotated_img)
+
+    # convert tank06.png -background 'rgba(0,0,0,0)'   -filter Lanczos  -rotate -30  -resize 9%    tank06.resized.png
+    rotated_img = wand.image.Image.from_array(img_rgba, channel_map='RGBA')
+    rotated_img.rotate(-angle_in_degrees)
+    img_rgba = np.array(rotated_img)
+
+    # img_rgba = scipy.ndimage.rotate(img_rgba, angle=angle_in_degrees, reshape=True)
 
     # Filter .
     transparent_pixels = img_rgba[:, :, 3] < alpha_channel_threshold
@@ -47,14 +57,18 @@ def rotate_resize_crop_rgba_img(
 
     scaled_height_in_pixels = int(rotated_and_resized_rgba.shape[0] *
         scaled_width_in_pixels / rotated_and_resized_rgba.shape[1])
-    rotated_and_resized_rgba = skimage.transform.resize(
-        rotated_and_resized_rgba, (scaled_height_in_pixels, scaled_width_in_pixels),
-        order=1, mode='constant', anti_aliasing=False,
-        preserve_range=True).astype(np.uint8)
+
+    rotated_and_resized_img = wand.image.Image.from_array(rotated_and_resized_rgba, channel_map='RGBA')
+    rotated_and_resized_img.resize(width=scaled_width_in_pixels, height=scaled_height_in_pixels, filter='lanczos')
+    rotated_and_resized_rgba = np.array(rotated_and_resized_img)
+    # rotated_and_resized_rgba = skimage.transform.resize(
+    #    rotated_and_resized_rgba, (scaled_height_in_pixels, scaled_width_in_pixels),
+    #    order=1, mode='constant', anti_aliasing=False,
+    #    preserve_range=True).astype(np.uint8)
 
     rotated_and_resized_rgba[
-        rotated_and_resized_rgba[:, :, 3] < alpha_channel_threshold] = [0, 0, 0, 0]
+       rotated_and_resized_rgba[:, :, 3] < alpha_channel_threshold] = [0, 0, 0, 0]
     rotated_and_resized_rgba[
-        rotated_and_resized_rgba[:, :, 3] >= alpha_channel_threshold, 3] = 255
+       rotated_and_resized_rgba[:, :, 3] >= alpha_channel_threshold, 3] = 255
 
     return rotated_and_resized_rgba
