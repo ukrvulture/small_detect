@@ -19,7 +19,7 @@ def rotate_resize_crop_rgba_img(
       img_rgba: Source image RGBa-array.
       angle_in_degrees: Rotation angle in degrees [0 .. 360].
       scaled_width_in_pixels: Target width in pixels.
-      alpha_channel_threshold: Threshold to filter out transparent pixels [0 .. 255].
+      alpha_channel_threshold: Threshold to filter out transparent pixels [0..255].
 
     Returns:
       RGBa-array with rotated and resized image
