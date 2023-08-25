@@ -37,7 +37,7 @@ def load_images_from_dir(dir_path, ignore_non_images=False, recursive=False):
             yield image.RawImage(path=file_path, rgba=img_rgba)
         except ValueError:
             if not ignore_non_images:
-                logging.warning(f"{file_path} is not a file")
+                logging.warning(f"{file_path} is not an image.")
             continue
 
     if recursive and sub_paths:
