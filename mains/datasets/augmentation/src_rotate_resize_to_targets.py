@@ -59,7 +59,7 @@ def parse_args(argv):
 
     parser.add_argument('-a', '--alpha_threshold', dest='alpha_channel_threshold',
         help='Transparency threshold for smoothing [0..255].', required=False,
-        type=int, default=215)
+        type=int, default=230)
 
     return parser.parse_args(argv[1:])
 
@@ -135,22 +135,26 @@ def main(argv):
                     augmented_obj_rgba.shape[1] // 2, augmented_obj_rgba.shape[0] // 2))
 
             (target_with_augmented_rgba,
-             augmented_src_rgba, binary_mask) = overlay.fit_into_largest(
+             augmented_src_rgba, binary_mask) = overlay.saliency_blend_into_largest(
                 tile_rgba, augmented_obj_rgba,
                 augmented_obj_center_row, augmented_obj_center_col,
-                alpha_channel_threshold)
+                alpha_channel_threshold, tiny_img_max_side_size=20)
 
             output_img_suffix = f'.a{angle_in_degrees}.w{scaled_width_in_pixels}'
 
             target_with_augmented_img_path = output_dir_path.joinpath(
-                    target_image.path.stem + output_img_suffix + target_image.path.suffix)
+                target_image.path.stem + output_img_suffix + target_image.path.suffix)
+            target_tile_path = output_dir_path.joinpath(
+                target_image.path.stem + output_img_suffix + '.target.png')
             augmented_src_path = output_dir_path.joinpath(
-                    target_image.path.stem + output_img_suffix + '.augsrc.png')
+                target_image.path.stem + output_img_suffix + '.augsrc.png')
             binary_mask_path = output_dir_path.joinpath(
-                    target_image.path.stem + output_img_suffix + '.mask.png')
+                target_image.path.stem + output_img_suffix + '.mask.png')
             skimage.io.imsave(str(target_with_augmented_img_path), target_with_augmented_rgba)
-            skimage.io.imsave(str(augmented_src_path), augmented_src_rgba)
-            skimage.io.imsave(str(binary_mask_path), skimage.img_as_uint(binary_mask))
+            skimage.io.imsave(str(target_tile_path), tile_rgba)
+            skimage.io.imsave(str(augmented_src_path), augmented_src_rgba, check_contrast=False)
+            skimage.io.imsave(
+                str(binary_mask_path), skimage.img_as_uint(binary_mask), check_contrast=False)
 
             output_idx += 1
             if output_idx % 50 == 0:
