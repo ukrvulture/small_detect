@@ -18,6 +18,7 @@ from src.img_processing.io import imgread
 from src.img_processing.tiling import random_tiling
 
 import argparse
+import collections
 import itertools
 import logging
 import os
@@ -106,14 +107,28 @@ def main(argv):
         logging.error('Incorrect source object transparency threshold.')
         return os.EX_NOINPUT
 
-    target_image_iter = itertools.cycle(imgread.load_images_from_dir(targets_dir_path))
-    src_obj_img_iter = itertools.cycle(imgread.load_images_from_dir(src_dir_path))
+    target_image_files = collections.deque(
+        imgread.list_image_file_from_dir(targets_dir_path))
+    src_obj_img_files = list(imgread.list_image_file_from_dir(src_dir_path))
 
     output_idx = 0
-    while output_idx < num_of_outputs:
-        for img_tile_idx in range(num_tiles_per_image):
-            target_image = next(target_image_iter)
-            src_obj_img = next(src_obj_img_iter)
+    while output_idx < num_of_outputs and target_image_files and src_obj_img_files:
+        target_image = target_image_files[0].load()
+        target_image_files.rotate(-1)
+        if not target_image:
+            logging.error("Malformed target %s.", target_image_files[0])
+            target_image_files.pop()  # malformed
+            continue
+
+        img_tile_idx = 0
+        while img_tile_idx < num_tiles_per_image and src_obj_img_files:
+            src_obj_img_file = random.choice(src_obj_img_files)
+            src_obj_img = src_obj_img_file.load()
+            if not src_obj_img:
+                logging.error("Malformed source %s.", src_obj_img_file)
+                src_obj_img_files.remove(src_obj_img_file)
+                continue
+            img_tile_idx += 1
 
             # Prepare the target tile.
             tile_top_left_row, tile_top_left_col = (
@@ -129,6 +144,8 @@ def main(argv):
                 src_obj_img.rgba, angle_in_degrees, scaled_width_in_pixels,
                 alpha_channel_threshold)
 
+            output_img_suffix = f'.a{angle_in_degrees}.w{scaled_width_in_pixels}'
+
             # Find random place in the tile.
             augmented_obj_center_row, augmented_obj_center_col = (
                 random_selection.get_random_row_col(tile_rgba,
@@ -140,10 +157,8 @@ def main(argv):
                 augmented_obj_center_row, augmented_obj_center_col,
                 alpha_channel_threshold, tiny_img_max_side_size=20)
 
-            output_img_suffix = f'.a{angle_in_degrees}.w{scaled_width_in_pixels}'
-
             target_with_augmented_img_path = output_dir_path.joinpath(
-                target_image.path.stem + output_img_suffix + target_image.path.suffix)
+                target_image.path.stem + output_img_suffix + '.png')
             target_tile_path = output_dir_path.joinpath(
                 target_image.path.stem + output_img_suffix + '.target.png')
             augmented_src_path = output_dir_path.joinpath(
@@ -162,6 +177,8 @@ def main(argv):
             if output_idx >= num_of_outputs:
                 break
 
+    if not target_image_files or not src_obj_img_files:
+        logging.warning("No target or source images.")
     if output_idx % 50 != 0:
         logging.info(f"{output_idx} output sets generated.")
     return os.EX_OK

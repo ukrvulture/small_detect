@@ -76,17 +76,15 @@ def saliency_blend_into_largest(
                 arguments=ImageMagicProps.SEAMLESS_SALIENCY_BLEND_AGS)
         else:
             # Average color of source image and use this color to
-            # substitute black transparent pixels.
+            # substitute black transparent pixels. See
             # http://www.github.com/ImageMagick/ImageMagick/discussions/6578#discussioncomment-6899781
-            src_img_to_restore_alpha = img_pool.imagick_from_imagick(src_img)
-            one_pixel_avg_color_rgba = skimage.transform.resize(
+            src_img_to_restore_alpha = img_pool.clone_imagick(src_img)
+            smaller_rgba_to_one_pixel = skimage.transform.resize(
                 smaller_rgba, (1, 1), order=1, mode='constant', anti_aliasing=False,
                 preserve_range=True).astype(np.uint8)[0, 0]
-            uniform_avg_color_rgba = np.tile(
-                one_pixel_avg_color_rgba, (larger_rgba.shape[0], larger_rgba.shape[1], 1))
-            transparent_background_to_gradient = img_pool.imagick_from_rgba(
-                uniform_avg_color_rgba)
-            src_img.composite(transparent_background_to_gradient, operator='dst_over')  # gradient
+            transparent_gradient_background = img_pool.imagick_from_color_and_shape(
+                smaller_rgba_to_one_pixel, larger_rgba.shape)
+            src_img.composite(transparent_gradient_background, operator='dst_over')  # gradient
 
             src_img.composite(src_img_to_restore_alpha, operator='copy_alpha')
             target_img.composite(
