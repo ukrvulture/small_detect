@@ -6,10 +6,38 @@ from src.img_processing.base import image
 
 import logging
 import os
-import pathlib
 
+import imghdr
 import numpy as np
 import skimage.io
+
+
+def list_image_file_from_dir(dir_path, ignore_non_images=False, recursive=False):
+    """Lists absolute paths to image files.
+
+    Args:
+      dir_path: Root folder path.
+      ignore_non_images: Just skip, if there is an auxiliary files in the folder.
+      recursive: Flag to look also in sub-folders.
+
+    Returns:
+      Generator yielding ImageFile objects.
+    """
+    sub_paths = []
+    for file_name in sorted(os.listdir(str(dir_path))):
+        file_path = dir_path / file_name
+        if file_path.is_dir():
+            sub_paths.append(file_path)
+            continue
+
+        if imghdr.what(str(file_path)):
+            yield image.ImageFile(file_path.absolute())
+        elif not ignore_non_images:
+            logging.warning(f"{file_path} is not an image.")
+
+    if recursive and sub_paths:
+        for dir_path in sub_paths:
+            yield from list_image_file_from_dir(dir_path, ignore_non_images, recursive)
 
 
 def load_images_from_dir(dir_path, ignore_non_images=False, recursive=False):
@@ -21,7 +49,7 @@ def load_images_from_dir(dir_path, ignore_non_images=False, recursive=False):
       recursive: Flag to look also in sub-folders.
 
     Returns:
-      Generator yielding RawImage object.
+      Generator yielding RawImage objects.
     """
     sub_paths = []
     for file_name in sorted(os.listdir(str(dir_path))):
@@ -38,7 +66,6 @@ def load_images_from_dir(dir_path, ignore_non_images=False, recursive=False):
         except ValueError:
             if not ignore_non_images:
                 logging.warning(f"{file_path} is not an image.")
-            continue
 
     if recursive and sub_paths:
         for dir_path in sub_paths:

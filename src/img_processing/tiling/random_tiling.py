@@ -23,10 +23,10 @@ def get_random_tile_row_col(img_rgba, tile_width, tile_height):
 
     tile_top_left_row = 0
     if tile_width < img_width:
-        tile_top_left_row = random.randrange(img_width - tile_width)
+        tile_top_left_row = random.randrange(img_height - tile_height)
 
     tile_top_left_col = 0
     if tile_height < img_height:
-        tile_top_left_col = random.randrange(img_height - tile_height)
+        tile_top_left_col = random.randrange(img_width - tile_width)
 
     return tile_top_left_row, tile_top_left_col
