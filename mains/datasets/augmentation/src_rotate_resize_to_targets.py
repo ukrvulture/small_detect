@@ -19,7 +19,7 @@ from src.img_processing.tiling import random_tiling
 
 import argparse
 import collections
-import itertools
+import json
 import logging
 import os
 import pathlib
@@ -31,6 +31,29 @@ import skimage
 import skimage.io
 
 
+class AugmentedSetInputs:
+    def __init__(self):
+        self.target_img_path, self.source_img_path = '', ''
+        self.tile_top_left_row, self.tile_top_left_col = 0, 0
+        self.tile_width, self.tile_height = 0, 0
+        self.angle_in_degrees = 0
+        self.scaled_width_in_pixels = 0
+
+    def __repr__(self):
+        return json.dumps(vars(self), indent=2)
+
+    def init(self, target_img_path='', source_img_path=''):
+        self.target_img_path, self.source_img_path = target_img_path, source_img_path
+        self.tile_top_left_row, self.tile_top_left_col = 0, 0
+        self.tile_width, self.tile_height = 0, 0
+        self.angle_in_degrees = 0
+        self.scaled_width_in_pixels = 0
+
+    @property
+    def output_img_suffix(self):
+        return f'.a{self.angle_in_degrees}.w{self.scaled_width_in_pixels}'
+
+
 def parse_args(argv):
     # Parse input arguments.
     parser = argparse.ArgumentParser(description='Fit Sources into Targets')
@@ -39,7 +62,7 @@ def parse_args(argv):
     parser.add_argument('-d', '--targets_dir', dest='targets_dir_path',
         help='Folder with target images.', required=True)
     parser.add_argument('-o', '--output_dir', dest='output_dir_path',
-        help='Folder with target images.', required=True)
+        help='Output folder.', required=True)
 
     parser.add_argument('-n', '--num_outputs', dest='num_of_outputs',
         help='Total number of augmented images.', required=False,
@@ -111,9 +134,12 @@ def main(argv):
         imgread.list_image_file_from_dir(targets_dir_path))
     src_obj_img_files = list(imgread.list_image_file_from_dir(src_dir_path))
 
+    aug_set_inputs = AugmentedSetInputs()
+
     output_idx = 0
     while output_idx < num_of_outputs and target_image_files and src_obj_img_files:
-        target_image = target_image_files[0].load()
+        target_image_file = target_image_files[0]
+        target_image = target_image_file.load()
         target_image_files.rotate(-1)
         if not target_image:
             logging.error("Malformed target %s.", target_image_files[0])
@@ -130,46 +156,24 @@ def main(argv):
                 continue
             img_tile_idx += 1
 
-            # Prepare the target tile.
-            tile_top_left_row, tile_top_left_col = (
-                random_tiling.get_random_tile_row_col(target_image.rgba, tile_width, tile_height))
-            tile_rgba = cropping.crop_rgba(
-                target_image.rgba, tile_top_left_row, tile_top_left_col, tile_width, tile_height)
+            aug_set_inputs.init(
+                target_img_path=target_image_file.path, source_img_path=src_obj_img_file.path)
 
-            # Take next augmented source object.
-            angle_in_degrees = random.randint(0, 180)
-            scaled_width_in_pixels = random.randint(
-                lower_bound_of_object_width, upper_bound_of_object_width + 1)
-            augmented_obj_rgba = rotation_resizing_cropping.rotate_resize_crop_rgba_img(
-                src_obj_img.rgba, angle_in_degrees, scaled_width_in_pixels,
-                alpha_channel_threshold)
+            aug_set_inputs.tile_top_left_row, aug_set_inputs.tile_top_left_col = (
+                random_tiling.get_random_tile_row_col(target_image.shape, tile_width, tile_height))
+            aug_set_inputs.tile_width, aug_set_inputs.tile_height = tile_width, tile_height
+            aug_set_inputs.angle_in_degrees = random.randint(0, 180)
+            aug_set_inputs.scaled_width_in_pixels = random.randint(
+                min(src_obj_img.shape[1], lower_bound_of_object_width),
+                min(src_obj_img.shape[1], upper_bound_of_object_width) + 1)
 
-            output_img_suffix = f'.a{angle_in_degrees}.w{scaled_width_in_pixels}'
-
-            # Find random place in the tile.
-            augmented_obj_center_row, augmented_obj_center_col = (
-                random_selection.get_random_row_col(tile_rgba,
-                    augmented_obj_rgba.shape[1] // 2, augmented_obj_rgba.shape[0] // 2))
-
-            (target_with_augmented_rgba,
-             augmented_src_rgba, binary_mask) = overlay.saliency_blend_into_largest(
-                tile_rgba, augmented_obj_rgba,
-                augmented_obj_center_row, augmented_obj_center_col,
-                alpha_channel_threshold, tiny_img_max_side_size=20)
-
-            target_with_augmented_img_path = output_dir_path.joinpath(
-                target_image.path.stem + output_img_suffix + '.png')
-            target_tile_path = output_dir_path.joinpath(
-                target_image.path.stem + output_img_suffix + '.target.png')
-            augmented_src_path = output_dir_path.joinpath(
-                target_image.path.stem + output_img_suffix + '.augsrc.png')
-            binary_mask_path = output_dir_path.joinpath(
-                target_image.path.stem + output_img_suffix + '.mask.png')
-            skimage.io.imsave(str(target_with_augmented_img_path), target_with_augmented_rgba)
-            skimage.io.imsave(str(target_tile_path), tile_rgba)
-            skimage.io.imsave(str(augmented_src_path), augmented_src_rgba, check_contrast=False)
-            skimage.io.imsave(
-                str(binary_mask_path), skimage.img_as_uint(binary_mask), check_contrast=False)
+            # noinspection PyBroadException
+            try:
+                augment_source_in_target(
+                    target_image, src_obj_img, alpha_channel_threshold,
+                    aug_set_inputs, output_dir_path)
+            except Exception:
+                logging.exception(f"Augmentation {aug_set_inputs}.")
 
             output_idx += 1
             if output_idx % 50 == 0:
@@ -182,6 +186,57 @@ def main(argv):
     if output_idx % 50 != 0:
         logging.info(f"{output_idx} output sets generated.")
     return os.EX_OK
+
+
+def augment_source_in_target(
+        target_image, src_obj_img, alpha_channel_threshold,
+        aug_set_inputs, output_dir_path):
+    """Overlays source image over the target with the specified augmentations.
+
+    Args:
+      target_image: Target image.
+      src_obj_img: Source image (transparent pixels to outline the contour).
+      alpha_channel_threshold: Threshold to filter out transparent pixels [0..255].
+      aug_set_inputs: Augmentation parameters.
+      output_dir_path: Output folder.
+    """
+    # Prepare the target tile.
+    tile_rgba = cropping.crop_rgba(
+        target_image.rgba,
+        aug_set_inputs.tile_top_left_row, aug_set_inputs.tile_top_left_col,
+        aug_set_inputs.tile_width, aug_set_inputs.tile_height)
+
+    # Take next augmented source object.
+    augmented_obj_rgba = rotation_resizing_cropping.rotate_resize_crop_rgba_img(
+        src_obj_img.rgba,
+        aug_set_inputs.angle_in_degrees, aug_set_inputs.scaled_width_in_pixels,
+        alpha_channel_threshold)
+
+    # Find random place in the tile.
+    augmented_obj_center_row, augmented_obj_center_col = (
+        random_selection.get_random_row_col(
+            tile_rgba,
+            augmented_obj_rgba.shape[1] // 2, augmented_obj_rgba.shape[0] // 2))
+
+    (target_with_augmented_rgba,
+     augmented_src_rgba, binary_mask) = overlay.saliency_blend_into_largest(
+        tile_rgba, augmented_obj_rgba,
+        augmented_obj_center_row, augmented_obj_center_col,
+        alpha_channel_threshold, tiny_img_max_side_size=20)
+
+    target_with_augmented_img_path = output_dir_path.joinpath(
+        target_image.path.stem + aug_set_inputs.output_img_suffix + '.png')
+    target_tile_path = output_dir_path.joinpath(
+        target_image.path.stem + aug_set_inputs.output_img_suffix + '.target.png')
+    augmented_src_path = output_dir_path.joinpath(
+        target_image.path.stem + aug_set_inputs.output_img_suffix + '.augsrc.png')
+    binary_mask_path = output_dir_path.joinpath(
+        target_image.path.stem + aug_set_inputs.output_img_suffix + '.mask.png')
+    skimage.io.imsave(str(target_with_augmented_img_path), target_with_augmented_rgba)
+    skimage.io.imsave(str(target_tile_path), tile_rgba)
+    skimage.io.imsave(str(augmented_src_path), augmented_src_rgba, check_contrast=False)
+    skimage.io.imsave(
+        str(binary_mask_path), skimage.img_as_uint(binary_mask), check_contrast=False)
 
 
 if __name__ == '__main__':
