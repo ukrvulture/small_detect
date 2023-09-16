@@ -45,6 +45,10 @@ class RawImage:
         if self.rgba:
             self.rgba.resize(0, 0, refcheck=False)
 
+    @property
+    def shape(self):
+        return self.rgba.shape if self.rgba is not None else (0, 0)
+
     def add_alpha_if_absent(self):
         if 2 < len(self.rgba.shape) and self.rgba.shape[-1] == 3:
             self.rgba = np.insert(self.rgba, 3, 255, axis=2)
