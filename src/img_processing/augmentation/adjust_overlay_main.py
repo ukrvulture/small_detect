@@ -3,12 +3,12 @@
 # The script to fit one image into another.
 #
 # Usage:
-#   python adjust_overlay.py \
+#   python adjust_overlay_main.py \
 #     --img_to_fit <larger_img_path> --insert_img <smaller_img_path> \
 #     --output_img <output_img_path> --insert_mask <binary_mask_path> \
 #     --center_row 50 --center_column 50 --alpha_threshold 215
 
-from src.img_processing.augmentation import overlay
+from src.img_processing.augmentation import adjust_overlay
 
 import argparse
 import logging
@@ -76,7 +76,7 @@ def main(argv):
         logging.error(f'Wrong {height_of_img_to_fit} column offset.')
         return os.EX_NOINPUT
 
-    overlaid_img_rgba, binary_mask = overlay.fit_into_largest(
+    overlaid_img_rgba, binary_mask = adjust_overlay.saliency_blend_into_largest(
         img_rgba_to_fit_into, inserted_img_rgba,
         center_row_of_overlay, center_column_of_overlay,
         alpha_mask_threshold)

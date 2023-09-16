@@ -3,7 +3,7 @@
 # The script to detect shadows using SAM neural network.
 #
 # Usage:
-#   python sam_shadow_detection.py \
+#   python sam_shadow_detection_main.py \
 #     --dir <input_dir> --sam_pth sam_vit_b_01ec64.pth --sam_type vit_b
 
 
