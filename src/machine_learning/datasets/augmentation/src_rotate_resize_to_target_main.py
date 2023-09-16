@@ -3,19 +3,19 @@
 # The script to generate dataset by fitting rotated/scaled src objects into targets.
 #
 # Usage:
-#   python src_rotate_resize_to_targets.py \
+#   python src_rotate_resize_to_target_main.py \
 #     --num_outputs 5 --tiles_per_img 4 \
 #     --tile_width 128 --tile_height 128
 #     --low_obj_width 15 --upper_obj_width 60 \
 #     --src_dir <path_of_augmented_img_dir> --targets_dir <path_of_target_img_dir> \
 #     --output_dir <output_img_path>
 
-from src.img_processing.augmentation import overlay
-from src.img_processing.augmentation import rotation_resizing_cropping
+from src.img_processing.augmentation import adjust_overlay
+from src.img_processing.augmentation import rotate_resize_crop
 from src.img_processing.editing import cropping
 from src.img_processing.editing import random_selection
 from src.img_processing.io import imgread
-from src.img_processing.tiling import random_tiling
+from src.img_processing.tiling import random_tile
 
 import argparse
 import collections
@@ -160,7 +160,7 @@ def main(argv):
                 target_img_path=target_image_file.path, source_img_path=src_obj_img_file.path)
 
             aug_set_inputs.tile_top_left_row, aug_set_inputs.tile_top_left_col = (
-                random_tiling.get_random_tile_row_col(target_image.shape, tile_width, tile_height))
+                random_tile.get_random_tile_row_col(target_image.shape, tile_width, tile_height))
             aug_set_inputs.tile_width, aug_set_inputs.tile_height = tile_width, tile_height
             aug_set_inputs.angle_in_degrees = random.randint(0, 180)
             aug_set_inputs.scaled_width_in_pixels = random.randint(
@@ -207,7 +207,7 @@ def augment_source_in_target(
         aug_set_inputs.tile_width, aug_set_inputs.tile_height)
 
     # Take next augmented source object.
-    augmented_obj_rgba = rotation_resizing_cropping.rotate_resize_crop_rgba_img(
+    augmented_obj_rgba = rotate_resize_crop.rotate_resize_crop_rgba_img(
         src_obj_img.rgba,
         aug_set_inputs.angle_in_degrees, aug_set_inputs.scaled_width_in_pixels,
         alpha_channel_threshold)
@@ -219,7 +219,7 @@ def augment_source_in_target(
             augmented_obj_rgba.shape[1] // 2, augmented_obj_rgba.shape[0] // 2))
 
     (target_with_augmented_rgba,
-     augmented_src_rgba, binary_mask) = overlay.saliency_blend_into_largest(
+     augmented_src_rgba, binary_mask) = adjust_overlay.saliency_blend_into_largest(
         tile_rgba, augmented_obj_rgba,
         augmented_obj_center_row, augmented_obj_center_col,
         alpha_channel_threshold, tiny_img_max_side_size=20)

@@ -3,11 +3,11 @@
 # The script to generate all possible rotations of a template image.
 #
 # Usage:
-#   python tmpl_img_rotation.py \
+#   python rotate_resize_crop_main.py \
 #     --degrees 30 --width 40 --alpha_threshold 215 \
 #     --input_img <input_img_path> --output_dir <input_dir_path>
 
-from src.img_processing.augmentation import rotation_resizing_cropping
+from src.img_processing.augmentation import rotate_resize_crop
 
 import argparse
 import logging
@@ -57,7 +57,7 @@ def main(argv):
     if img_rgba.shape[-1] == 3:
         img_rgba = np.insert(img_rgba, 3, 255, axis=2)
 
-    output_rgba = rotation_resizing_cropping.rotate_resize_crop_rgba_img(
+    output_rgba = rotate_resize_crop.rotate_resize_crop_rgba_img(
         img_rgba, angle_in_degrees, scaled_width_in_pixels,
         alpha_channel_threshold)
 
