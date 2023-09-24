@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from src.img_processing.editing import cropping
-from src.img_processing.tiling import random_tile
+from src.img_processing.tiling import tile_breaking
 
 import argparse
 import os
@@ -37,7 +37,7 @@ def main(argv):
 
     img_rgba = skimage.io.imread(str(input_img_path))
     tile_top_left_row, tile_top_left_col = (
-        random_tile.get_random_tile_row_col(img_rgba, tile_width, tile_height))
+        tile_breaking.get_random_tile_row_col((tile_height, tile_width), img_rgba.shape))
     tile_rgba = cropping.crop_rgba(
         img_rgba, tile_top_left_row, tile_top_left_col, tile_width, tile_height)
     skimage.io.imsave(str(output_img_path), tile_rgba)
