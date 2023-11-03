@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 import numpy as np
+import os
+import pathlib
 import skimage.io
 
 
@@ -18,6 +20,11 @@ class ImageFile:
 
     def __hash__(self):
         return hash((self.path,))
+
+    @property
+    def stem(self):
+        return (self.path.stem if isinstance(self.path, pathlib.Path) else
+                os.path.splitext(os.path.basename(self.path))[0])
 
     def load(self):
         try:
