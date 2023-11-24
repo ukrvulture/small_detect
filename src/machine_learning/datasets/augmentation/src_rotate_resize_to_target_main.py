@@ -5,10 +5,14 @@
 # Usage:
 #   python src_rotate_resize_to_target_main.py \
 #     --num_outputs 5 --tiles_per_img 4 \
-#     --tile_width 128 --tile_height 128
+#     --tile_width 128 --tile_height 128 \
 #     --low_obj_width 15 --upper_obj_width 60 \
 #     --src_dir <path_of_augmented_img_dir> --targets_dir <path_of_target_img_dir> \
 #     --output_dir <output_img_path>
+
+import os, sys
+SCRIPT_DIRS = os.path.dirname(os.path.abspath(__file__)).split(os.sep)
+sys.path.append(os.path.join(os.sep, *SCRIPT_DIRS[:SCRIPT_DIRS.index('src')]))
 
 from src.img_processing.augmentation import adjust_overlay
 from src.img_processing.augmentation import rotate_resize_crop
@@ -29,7 +33,6 @@ import re
 import pathlib
 import random
 import shutil
-import sys
 
 import skimage
 import skimage.io
@@ -178,14 +181,14 @@ def main(argv):
                 failed_output_idx += 1
 
             output_idx += 1
-            if output_idx % 50 == 0:
+            if output_idx % 25 == 0:
                 logging.info(f"{output_idx} outputs processed.")
             if output_idx >= num_of_outputs:
                 break
 
     if not target_image_files or not src_obj_img_files:
         logging.warning('No target or source images.')
-    if output_idx % 50 != 0:
+    if output_idx % 25 != 0:
         logging.info('%d output sets generated%s.', output_idx - failed_output_idx,
             '({} failed)'.format(failed_output_idx) if failed_output_idx else '')
     return os.EX_OK

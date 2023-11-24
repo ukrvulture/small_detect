@@ -76,6 +76,6 @@ def load_images_from_dir(dir_path, recursive=False, ignore_non_images=False):
             if not ignore_non_images:
                 logging.warning(f"{file_path} is not an image.")
 
-    if recursive and sub_paths:
+    if recursive and sorted(sub_paths):
         for dir_path in sub_paths:
             yield from load_images_from_dir(dir_path, ignore_non_images, recursive)

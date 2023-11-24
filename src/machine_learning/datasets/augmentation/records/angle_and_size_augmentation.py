@@ -57,7 +57,7 @@ class AngledResizedSrcInTargetFileDesc:
     @classmethod
     def from_src_and_target_file(cls, src_img_file, target_image_file):
         return cls(combined_augmented_file_prefix=cls.combine_augmented_file_names(
-            src_img_file, target_image_file))
+            target_image_file, src_img_file))
 
     @staticmethod
     def combine_augmented_file_names(src_img_file, target_image_file):
