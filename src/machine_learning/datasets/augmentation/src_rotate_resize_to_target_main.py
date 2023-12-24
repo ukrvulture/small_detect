@@ -34,7 +34,9 @@ import pathlib
 import random
 import shutil
 
+import numpy as np
 import skimage
+import skimage.color
 import skimage.io
 
 
@@ -148,8 +150,10 @@ def main(argv):
             target_image_files.pop()
             continue
 
-        img_tile_idx = 0
-        while img_tile_idx < num_tiles_per_image and src_obj_img_files:
+        src_imgs_and_aug_descriptors = []
+
+        img_tile_idx, rest_out_count = 0, num_of_outputs - output_idx
+        while img_tile_idx < min(num_tiles_per_image, rest_out_count) and src_obj_img_files:
             src_obj_img_file = random.choice(src_obj_img_files)
             src_obj_img = src_obj_img_file.load()
             if (not src_obj_img or not tile_breaking.any_tile_fit(
@@ -171,20 +175,22 @@ def main(argv):
                 min(src_obj_img.shape[1], lower_bound_of_src_obj_width),
                 min(src_obj_img.shape[1], upper_bound_of_src_obj_width) + 1)
 
-            # noinspection PyBroadException
-            try:
-                augment_source_in_target(
-                    target_image, src_obj_img, alpha_channel_threshold,
-                    aug_sample_desc, output_dir_path)
-            except Exception:
-                logging.exception('Augmentation %s.', aug_sample_desc)
-                failed_output_idx += 1
+            src_imgs_and_aug_descriptors.append((src_obj_img, aug_sample_desc))
 
-            output_idx += 1
-            if output_idx % 25 == 0:
-                logging.info(f"{output_idx} outputs processed.")
-            if output_idx >= num_of_outputs:
-                break
+        # noinspection PyBroadException
+        try:
+            augment_source_in_target(
+                target_image, src_imgs_and_aug_descriptors, alpha_channel_threshold,
+                output_dir_path)
+        except Exception:
+            logging.exception('Augmentation %s.', src_imgs_and_aug_descriptors)
+            failed_output_idx += 1
+
+        output_idx += len(src_imgs_and_aug_descriptors)
+        if output_idx % 25 < len(src_imgs_and_aug_descriptors):
+            logging.info(f"{output_idx - (output_idx % 25)} outputs processed.")
+        if output_idx >= num_of_outputs:
+            break
 
     if not target_image_files or not src_obj_img_files:
         logging.warning('No target or source images.')
@@ -195,52 +201,53 @@ def main(argv):
 
 
 def augment_source_in_target(
-        target_image, src_obj_img, alpha_channel_threshold,
-        aug_sample_desc, output_dir_path):
+        target_image, src_imgs_and_aug_descriptors, alpha_channel_threshold, output_dir_path):
     """Overlays source image over the target with the specified augmentations.
 
     Args:
       target_image: Target image.
-      src_obj_img: Source image (transparent pixels to outline the contour).
+      src_imgs_and_aug_descriptors: collection of source images (transparent
+                                    pixels to outline the contour) and related
+                                    meta-data of augmented sample.
       alpha_channel_threshold: Threshold to filter out transparent pixels [0..255].
-      aug_sample_desc: Meta-data of augmented sample.
       output_dir_path: Output folder.
     """
-    # Prepare the target tile.
-    tile_rgba = cropping.crop_rgba(
-        target_image.rgba,
-        aug_sample_desc.tile_top_left_row, aug_sample_desc.tile_top_left_col,
-        aug_sample_desc.tile_width, aug_sample_desc.tile_height)
+    for src_obj_img, aug_sample_desc in src_imgs_and_aug_descriptors:
+        # Prepare the target tile.
+        tile_rgba = cropping.crop_rgba(
+            target_image.rgba,
+            aug_sample_desc.tile_top_left_row, aug_sample_desc.tile_top_left_col,
+            aug_sample_desc.tile_width, aug_sample_desc.tile_height)
 
-    # Take next augmented source object.
-    augmented_obj_rgba = rotate_resize_crop.rotate_resize_crop_rgba_img(
-        src_obj_img.rgba,
-        aug_sample_desc.angle_in_degrees, aug_sample_desc.scaled_width_in_pixels,
-        alpha_channel_threshold)
+        # Take next augmented source object.
+        augmented_obj_rgba = rotate_resize_crop.rotate_resize_crop_rgba_img(
+            src_obj_img.rgba,
+            aug_sample_desc.angle_in_degrees, aug_sample_desc.scaled_width_in_pixels,
+            alpha_channel_threshold)
 
-    # Find random place in the tile.
-    augmented_obj_center_row, augmented_obj_center_col = (
-        random_selection.get_random_row_col(
-            tile_rgba,
-            augmented_obj_rgba.shape[1] // 2, augmented_obj_rgba.shape[0] // 2))
+        # Find random place in the tile.
+        augmented_obj_center_row, augmented_obj_center_col = (
+            random_selection.get_random_row_col(
+                tile_rgba,
+                augmented_obj_rgba.shape[1] // 2, augmented_obj_rgba.shape[0] // 2))
 
-    (target_with_augmented_rgba,
-     augmented_src_rgba, binary_mask) = adjust_overlay.saliency_blend_into_largest(
-        tile_rgba, augmented_obj_rgba,
-        augmented_obj_center_row, augmented_obj_center_col,
-        alpha_channel_threshold, tiny_img_max_side_size=20)
+        (target_with_augmented_rgba,
+         augmented_src_rgba, binary_mask) = adjust_overlay.saliency_blend_into_largest(
+            tile_rgba, augmented_obj_rgba,
+            augmented_obj_center_row, augmented_obj_center_col,
+            alpha_channel_threshold, tiny_img_max_side_size=20)
 
-    file_desc_to_rgba = {
-        AngledResizedSrcInTargetFileDesc.AUGMENTED_TILE : target_with_augmented_rgba,
-        AngledResizedSrcInTargetFileDesc.TARGET_TILE: tile_rgba,
-        AngledResizedSrcInTargetFileDesc.AUGMENTED_SRC: augmented_src_rgba,
-        AngledResizedSrcInTargetFileDesc.SRC_MASK: binary_mask,
-    }
-    sample_file_record = SampleFileRecord(aug_sample_desc)
-    for file_desc, rgba in file_desc_to_rgba.items():
-        skimage.io.imsave(
-            str(sample_file_record.get_saved_file_path(output_dir_path, file_desc, "png")),
-            rgba, check_contrast=False)
+        file_desc_to_rgba = {
+            AngledResizedSrcInTargetFileDesc.AUGMENTED_TILE : target_with_augmented_rgba,
+            AngledResizedSrcInTargetFileDesc.TARGET_TILE: tile_rgba,
+            AngledResizedSrcInTargetFileDesc.AUGMENTED_SRC: augmented_src_rgba,
+            AngledResizedSrcInTargetFileDesc.SRC_MASK: binary_mask,
+        }
+        sample_file_record = SampleFileRecord(aug_sample_desc)
+        for file_desc, rgba in file_desc_to_rgba.items():
+            skimage.io.imsave(
+                str(sample_file_record.get_saved_file_path(output_dir_path, file_desc, "png")),
+                rgba, check_contrast=False)
 
 
 if __name__ == '__main__':
