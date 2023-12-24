@@ -18,6 +18,9 @@ FILE_NAME_RE_PATTERN = '[^' + FILE_NAME_FORBIDDEN_SYMBOLS + ']+'
 class AngledResizedSrcInTargetFileDesc:
     """Descriptor of resized and rotated object augmented in target image."""
 
+    AUGMENTED_FULL = RecordFileDesc('full')
+    SRC_MASK_FULL = RecordFileDesc('full.mask')
+
     TARGET_TILE = RecordFileDesc('target')
     AUGMENTED_TILE = RecordFileDesc(suffix=None)
     AUGMENTED_SRC = RecordFileDesc('augsrc')
