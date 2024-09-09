@@ -23,14 +23,14 @@ from src.img_processing.io import imgread
 from src.img_processing.mask import scale_mask
 from src.img_processing.tiling import tile_breaking
 
-from src.machine_learning.datasets.augmentation.records.angle_and_size_augmentation import AngledResizedSrcInTargetFileDesc
-from src.machine_learning.datasets.augmentation.records.sample_file_record import SampleFileRecord
+from src.machine_learning.datasets.augmentation.records.angle_and_size_augmentation import AngledResizedSrcInTargetDesc
 
 import argparse
 import collections
 import logging
 import os
 import re
+import math
 import pathlib
 import random
 import shutil
@@ -49,6 +49,9 @@ def parse_args(argv):
                         help='Folder with target images.', required=True)
     parser.add_argument('-o', '--output_dir', dest='output_dir_path',
                         help='Output folder.', required=True)
+    parser.add_argument('-m', '--num_subdir_samples', dest='num_subdir_samples',
+                        help='Number of samples in output subdirectory.',
+                        required=False, type=int, default=1000)
 
     parser.add_argument('-n', '--num_outputs', dest='num_of_outputs',
                         help='Total number of augmented images.', required=False,
@@ -97,6 +100,7 @@ def main(argv):
     src_dir_path = pathlib.Path(parsed_args.src_dir_path)
     targets_dir_path = pathlib.Path(parsed_args.targets_dir_path)
     output_dir_path = pathlib.Path(parsed_args.output_dir_path)
+    num_of_samples_in_subdir = parsed_args.num_subdir_samples
     if not src_dir_path.is_dir() or not targets_dir_path.is_dir():
         logging.error('%s or %s is not a dir.', src_dir_path, targets_dir_path)
         return os.EX_NOINPUT
@@ -104,14 +108,21 @@ def main(argv):
         logging.error('%s is a file.', output_dir_path)
         return os.EX_NOINPUT
 
-    shutil.rmtree(output_dir_path)
-    output_dir_path.mkdir(parents=True, exist_ok=True)
-
     num_of_outputs = parsed_args.num_of_outputs
     num_tiles_per_image = parsed_args.num_tiles_per_image
     if num_tiles_per_image <= 0 and num_of_outputs <= 0:
         logging.error('Number of tiles per one image or outputs is 0 or negative.')
         return os.EX_NOINPUT
+
+    shutil.rmtree(output_dir_path)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    current_subdir_num = 0
+    number_of_subdirs = (
+        math.ceil(float(num_of_outputs) / num_of_samples_in_subdir)
+        if num_of_samples_in_subdir < num_of_outputs else 0)
+    subdir_name_len =  len(str(number_of_subdirs - 1)) if number_of_subdirs > 0 else 0
+    subdir_name_format = "{:0"+ str(subdir_name_len) +"d}" if number_of_subdirs > 0 else ""
 
     tile_width = parsed_args.tile_width
     tile_height = parsed_args.tile_height
@@ -159,6 +170,7 @@ def main(argv):
 
     output_idx = 0
     failed_output_idx = 0
+    random_collision_cnt = 0
     added_samples = set()
     while output_idx < num_of_outputs and target_image_files and src_obj_img_files:
         target_image_file = target_image_files[0]
@@ -178,6 +190,8 @@ def main(argv):
         src_imgs_and_aug_descriptors = []
 
         img_tile_idx, rest_out_count = 0, num_of_outputs - output_idx
+        if number_of_subdirs > 0:
+            rest_out_count = min(rest_out_count, (current_subdir_num + 1) * num_of_samples_in_subdir - output_idx)
         while img_tile_idx < min(num_tiles_per_image, rest_out_count) and src_obj_img_files:
             src_obj_img_file = random.choice(src_obj_img_files)
             src_obj_img = src_obj_img_file.load()
@@ -186,8 +200,11 @@ def main(argv):
                 logging.error('Malformed or too small source %s.', src_obj_img_file)
                 src_obj_img_files.remove(src_obj_img_file)
                 continue
+            if random_collision_cnt > 10^6:
+                logging.error('Excessive number of random collisions.')
+                sys.exit(-1)
 
-            aug_sample_desc = AngledResizedSrcInTargetFileDesc.from_src_and_target_file(
+            aug_sample_desc = AngledResizedSrcInTargetDesc.from_src_and_target_file(
                 src_img_file=src_obj_img_file, target_image_file=target_image_file)
 
             aug_sample_desc.tile_top_left_row, aug_sample_desc.tile_top_left_col = (
@@ -200,7 +217,9 @@ def main(argv):
                 min(src_obj_img.shape[1], lower_bound_of_src_obj_width),
                 min(src_obj_img.shape[1], upper_bound_of_src_obj_width) + 1)
 
-            if aug_sample_desc.combined_augmented_file_prefix in added_samples: continue
+            if aug_sample_desc.sample_id in added_samples:
+                random_collision_cnt += 1
+                continue
             src_imgs_and_aug_descriptors.append((src_obj_img, aug_sample_desc))
 
             img_tile_idx += 1
@@ -210,14 +229,16 @@ def main(argv):
             augment_source_in_target(
                 target_image, src_imgs_and_aug_descriptors,
                 scaled_mask_width, scaled_mask_height, alpha_channel_threshold,
-                output_dir_path)
+                output_dir_path / subdir_name_format.format(current_subdir_num)
+                if number_of_subdirs > 0 else output_dir_path)
         except Exception:
             logging.exception('Augmentation %s.', src_imgs_and_aug_descriptors)
             failed_output_idx += 1
 
         output_idx += len(src_imgs_and_aug_descriptors)
-        added_samples.update(
-            aug_desc.combined_augmented_file_prefix for src_img, aug_desc in src_imgs_and_aug_descriptors)
+        added_samples.update(aug_desc.sample_id for src_img, aug_desc in src_imgs_and_aug_descriptors)
+        if number_of_subdirs > 0 and (current_subdir_num + 1) * num_of_samples_in_subdir <= output_idx:
+            current_subdir_num += 1
         if output_idx % 25 < len(src_imgs_and_aug_descriptors):
             logging.info(f"{output_idx - (output_idx % 25)} outputs processed.")
         if output_idx >= num_of_outputs:
@@ -277,17 +298,17 @@ def augment_source_in_target(
             borderline_ratio_thold=0.5)
 
         file_desc_to_rgba = {
-            AngledResizedSrcInTargetFileDesc.AUGMENTED_TILE : target_with_augmented_rgba,
-            AngledResizedSrcInTargetFileDesc.TARGET_TILE: tile_rgba,
-            AngledResizedSrcInTargetFileDesc.AUGMENTED_SRC: augmented_src_rgba,
-            AngledResizedSrcInTargetFileDesc.TARGET_MASK: binary_mask,
-            AngledResizedSrcInTargetFileDesc.TARGET_SCALED_MASK: scaled_mask,
-            AngledResizedSrcInTargetFileDesc.TARGET_SCALED_MASK_OF_MASK: mask_of_mask,
+            AngledResizedSrcInTargetDesc.AUGMENTED_TILE : target_with_augmented_rgba,
+            AngledResizedSrcInTargetDesc.TARGET_TILE : tile_rgba,
+            AngledResizedSrcInTargetDesc.AUGMENTED_SRC : augmented_src_rgba,
+            AngledResizedSrcInTargetDesc.TARGET_MASK : binary_mask,
+            AngledResizedSrcInTargetDesc.TARGET_SCALED_MASK : scaled_mask,
+            AngledResizedSrcInTargetDesc.TARGET_SCALED_MASK_OF_MASK : mask_of_mask,
         }
-        sample_file_record = SampleFileRecord(aug_sample_desc)
-        for file_desc, pixels in file_desc_to_rgba.items():
+        for file_type, pixels in file_desc_to_rgba.items():
+            output_dir_path.mkdir(parents=True, exist_ok=True)
             skimage.io.imsave(
-                str(sample_file_record.get_saved_file_path(output_dir_path, file_desc, "png")),
+                str(aug_sample_desc.create_saved_file_path(output_dir_path, file_type, "png")),
                 pixels, check_contrast=False)
 
 
